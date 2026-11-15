@@ -9,7 +9,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "ws": "^8.16.0",
-    "tiktok-live-connector": "*"
+    "tiktok-live-connector": "^2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
