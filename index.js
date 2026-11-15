@@ -71,7 +71,12 @@ function scheduleReconnect() {
 }
 
 function createConnection() {
-    const conn = new ConnectionClass(tiktokUsername);
+    // Второй аргумент (options) обязателен в v2 — без него конструктор падает
+    const conn = new ConnectionClass(tiktokUsername, {
+        processInitialData: false,   // не повторять старые события при подключении
+        enableExtendedGiftInfo: false,
+        ...(process.env.EULER_API_KEY ? { signApiKey: process.env.EULER_API_KEY } : {})
+    });
 
     on(conn, 'chat', (data) => {
         const user = getUser(data);
@@ -121,7 +126,7 @@ function createConnection() {
 
     // Чтобы необработанное событие 'error' не роняло процесс
     on(conn, 'error', (err) => {
-        console.error('Ошибка TikTok соединения:', err && err.message ? err.message : err);
+        console.error('Ошибка TikTok соединения:', (err && (err.info || err.message)) || err);
     });
 
     return conn;
