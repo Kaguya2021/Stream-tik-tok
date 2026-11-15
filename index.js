@@ -1,10 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const tiktokConnector = require('tiktok-live-connector');
-
-// Точное обращение к конструктору для текущей версии пакета
-const WebcastPushConnection = tiktokConnector.default || tiktokConnector;
+const WebcastPushConnection = require('tiktok-live-connector').WebcastPushConnection;
 
 const app = express();
 const server = http.createServer(app);
