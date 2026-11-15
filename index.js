@@ -23,6 +23,13 @@ const DEFAULT_AVATAR = 'https://i.imgur.com/8Km9tLL.png';
 let connectedClients = new Set();
 let tiktokLiveConnection = null;
 let reconnectTimer = null;
+// Сессия твинка (необязательно): нужна, чтобы бот писал в чат TikTok
+const SESSION_ID = process.env.TIKTOK_SESSION_ID || '';
+const TARGET_IDC = process.env.TIKTOK_TARGET_IDC || '';
+const CAN_SEND = Boolean(SESSION_ID && TARGET_IDC);
+const REPLY_COOLDOWN_MS = 60000; // не отвечать одному человеку чаще раза в минуту
+const lastReplyAt = new Map();
+let lastSendAt = 0;
 const RETRY_MS = 30000; // слишком частые попытки приводят к rate-limit
 const MANUAL_ROOM_ID = process.env.TIKTOK_ROOM_ID || undefined; // можно задать вручную
 
@@ -85,6 +92,17 @@ function createConnection() {
         ...(process.env.EULER_API_KEY ? { signApiKey: process.env.EULER_API_KEY } : {})
     });
 
+    if (CAN_SEND && conn.webClient && conn.webClient.cookieJar
+        && typeof conn.webClient.cookieJar.setSessionBundle === 'function') {
+        Promise.resolve(conn.webClient.cookieJar.setSessionBundle({
+            type: 'cookie',
+            value: { sessionId: SESSION_ID, ttTargetIdc: TARGET_IDC }
+        })).then(() => console.log('Сессия твинка применена — ответы в чат включены'))
+          .catch(e => console.error('Не удалось применить сессию твинка:', (e && e.message) || e));
+    } else if (CAN_SEND) {
+        console.warn('TIKTOK_SESSION_ID задан, но эта версия библиотеки не поддерживает сессию.');
+    }
+
     on(conn, 'chat', (data) => {
         const user = getUser(data);
         const comment = String(data.comment || '');
@@ -104,13 +122,24 @@ function createConnection() {
             broadcast(chatMsg);
         }
 
-        if (comment.toLowerCase().includes('привет')) {
-            broadcast({
-                type: 'chat_reply',
-                user,
-                comment,
-                text: `Приветик, ${user}! Рады видеть на стриме :)`
-            });
+        // Свои же ответы («Приветик, ...») игнорируем, чтобы бот не зациклился
+        const isOwnReply = comment.startsWith('Приветик,');
+
+        if (!isOwnReply && comment.toLowerCase().includes('привет')) {
+            const text = `Приветик, ${user}! Рады видеть на стриме :)`;
+            broadcast({ type: 'chat_reply', user, comment, text });
+
+            // Ответ в сам чат TikTok от имени твинка
+            const now = Date.now();
+            if (CAN_SEND
+                && now - (lastReplyAt.get(user) || 0) > REPLY_COOLDOWN_MS
+                && now - lastSendAt > 3000
+                && typeof conn.sendMessage === 'function') {
+                lastReplyAt.set(user, now);
+                lastSendAt = now;
+                Promise.resolve(conn.sendMessage(text))
+                    .catch(e => console.error('Не удалось отправить в чат TikTok:', (e && e.message) || e));
+            }
         }
     });
 
