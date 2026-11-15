@@ -1,10 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-
-// Надежный импорт модуля tiktok-live-connector
-const TikTokLiveModule = require('tiktok-live-connector');
-const WebcastPushConnection = TikTokLiveModule.WebcastPushConnection || TikTokLiveModule.default || TikTokLiveModule;
+const WebcastPushConnection = require('tiktok-live-connector');
 
 const app = express();
 const server = http.createServer(app);
@@ -12,7 +9,6 @@ const wss = new WebSocketServer({ server });
 
 app.use(express.static('public'));
 
-// Твой ник в TikTok уже здесь
 const tiktokUsername = "Alkon191"; 
 
 let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
