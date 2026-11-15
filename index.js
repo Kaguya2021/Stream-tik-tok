@@ -23,6 +23,8 @@ const DEFAULT_AVATAR = 'https://i.imgur.com/8Km9tLL.png';
 let connectedClients = new Set();
 let tiktokLiveConnection = null;
 let reconnectTimer = null;
+const RETRY_MS = 30000; // слишком частые попытки приводят к rate-limit
+const MANUAL_ROOM_ID = process.env.TIKTOK_ROOM_ID || undefined; // можно задать вручную
 
 wss.on('connection', (ws) => {
     connectedClients.add(ws);
@@ -67,7 +69,7 @@ function scheduleReconnect() {
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connectTikTok();
-    }, 10000);
+    }, RETRY_MS);
 }
 
 function createConnection() {
@@ -127,6 +129,7 @@ function createConnection() {
     // Чтобы необработанное событие 'error' не роняло процесс
     on(conn, 'error', (err) => {
         console.error('Ошибка TikTok соединения:', (err && (err.info || err.message)) || err);
+        if (err && err.exception) console.error('  Детали:', err.exception.message || err.exception);
     });
 
     return conn;
@@ -138,10 +141,13 @@ function connectTikTok() {
     }
     tiktokLiveConnection = createConnection();
 
-    tiktokLiveConnection.connect().then(state => {
+    tiktokLiveConnection.connect(MANUAL_ROOM_ID).then(state => {
         console.log(`Подключено к стриму @${tiktokUsername} (Комната: ${state.roomId})`);
     }).catch(err => {
-        console.error('Ошибка подключения к стриму (повтор через 10 сек):', err && err.message ? err.message : err);
+        console.error(`Ошибка подключения к стриму (повтор через ${RETRY_MS / 1000} сек):`, err && err.message ? err.message : err);
+        // Подробности причины (v2 кладёт их в cause / exception)
+        const cause = err && (err.cause || err.exception || err.exceptions);
+        if (cause) console.error('  Причина:', cause.message || cause);
         scheduleReconnect();
     });
 }
