@@ -1,7 +1,15 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const tiktokConnector = require('tiktok-live-connector');
+
+// Принудительно вытаскиваем конструктор независимо от структуры модуля
+const WebcastPushConnection = tiktokConnector.WebcastPushConnection || tiktokConnector.default || tiktokConnector;
+
+if (typeof WebcastPushConnection !== 'function') {
+    console.error("ОШИБКА: Не удалось найти конструктор WebcastPushConnection в модуле!");
+    process.exit(1);
+}
 
 const app = express();
 const server = http.createServer(app);
