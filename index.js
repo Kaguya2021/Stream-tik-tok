@@ -26,8 +26,13 @@ let reconnectTimer = null;
 const RETRY_MS = 30000; // слишком частые попытки приводят к rate-limit
 const MANUAL_ROOM_ID = process.env.TIKTOK_ROOM_ID || undefined; // можно задать вручную
 
+// Последние сообщения чата — показываем оверлею сразу при (пере)подключении
+const chatHistory = [];
+const HISTORY_LIMIT = 30;
+
 wss.on('connection', (ws) => {
     connectedClients.add(ws);
+    for (const msg of chatHistory) ws.send(JSON.stringify(msg));
     console.log('Оверлей подключен к трансляции');
     ws.on('close', () => connectedClients.delete(ws));
     ws.on('error', () => connectedClients.delete(ws));
@@ -84,6 +89,20 @@ function createConnection() {
         const user = getUser(data);
         const comment = String(data.comment || '');
         console.log(`${user}: ${comment}`);
+
+        // Каждое сообщение из чата — на оверлей (ник + текст)
+        if (comment.trim()) {
+            const chatMsg = {
+                type: 'chat',
+                user,
+                nickname: (data.user && data.user.nickname) || data.nickname || user,
+                comment,
+                avatar: getAvatar(data)
+            };
+            chatHistory.push(chatMsg);
+            if (chatHistory.length > HISTORY_LIMIT) chatHistory.shift();
+            broadcast(chatMsg);
+        }
 
         if (comment.toLowerCase().includes('привет')) {
             broadcast({
