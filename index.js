@@ -1,13 +1,15 @@
 const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const TikTokLiveConnector = require('tiktok-live-connector');
+
+// Универсальный импорт конструктора
+const WebcastPushConnection = TikTokLiveConnector.WebcastPushConnection || TikTokLiveConnector;
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-// Раздаем статику (наш HTML-интерфейс)
 app.use(express.static('public'));
 
 // Укажи здесь свой ник в TikTok (без @)
@@ -16,7 +18,6 @@ const tiktokUsername = "Alkon191";
 let tiktokLiveConnection = new WebcastPushConnection(tiktokUsername);
 let connectedClients = new Set();
 
-// Подключение клиентов (оверлея) через WebSocket
 wss.on('connection', (ws) => {
     connectedClients.add(ws);
     console.log('Оверлей подключен к трансляции');
@@ -26,7 +27,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-// Функция отправки данных на все подключенные оверлеи
 function broadcast(data) {
     const message = JSON.stringify(data);
     for (const client of connectedClients) {
@@ -36,7 +36,6 @@ function broadcast(data) {
     }
 }
 
-// Запуск подключения к TikTok Live
 function connectTikTok() {
     tiktokLiveConnection.connect().then(state => {
         console.log(`Подключено к стриму @${tiktokUsername} (Комната: ${state.roomId})`);
@@ -46,7 +45,6 @@ function connectTikTok() {
     });
 }
 
-// Событие: Новый комментарий (ищем слово "привет")
 tiktokLiveConnection.on('chat', (data) => {
     console.log(`${data.uniqueId}: ${data.comment}`);
     
@@ -60,7 +58,6 @@ tiktokLiveConnection.on('chat', (data) => {
     }
 });
 
-// Событие: Тапы (лайки)
 tiktokLiveConnection.on('like', (data) => {
     broadcast({
         type: 'like',
@@ -70,10 +67,8 @@ tiktokLiveConnection.on('like', (data) => {
     });
 });
 
-// Событие: Подарки (VIP-блок на 1 минуту)
 tiktokLiveConnection.on('gift', (data) => {
     if (data.giftType === 1 && !data.repeatEnd) {
-        // Промежуточные анимации дешевых подарков пока пропускаем
         return;
     }
     console.log(`Подарок от ${data.uniqueId}: ${data.giftName} (х${data.repeatCount})`);
