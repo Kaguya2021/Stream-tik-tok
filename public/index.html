@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>TikTok Overlay</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: sans-serif;
+            color: white;
+            background: transparent; /* Прозрачный фон для оверлея в OBS/Prism */
+            overflow: hidden;
+        }
+        /* VIP Блок для подарков (висит 1 минуту) */
+        #vip-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 300px;
+        }
+        .vip-card {
+            background: rgba(138, 43, 226, 0.85);
+            border: 2px solid #ff007f;
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            animation: slideIn 0.5s ease;
+        }
+        .vip-card img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .vip-info h4 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+        .vip-info p {
+            margin: 0;
+            font-size: 13px;
+            color: #ffd700;
+        }
+
+        /* Всплывающие ответы из чата */
+        #chat-notifications {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 8px;
+            max-width: 350px;
+        }
+        .chat-bubble {
+            background: rgba(0, 0, 0, 0.7);
+            border-left: 4px solid #00f2fe;
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-size: 14px;
+            animation: fadeIn 0.3s ease;
+        }
+        .chat-bubble span {
+            font-weight: bold;
+            color: #00f2fe;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Сюда падают VIP подарки -->
+    <div id="vip-container"></div>
+
+    <!-- Сюда падают ответы на "привет" -->
+    <div id="chat-notifications"></div>
+
+    <script>
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'gift') {
+                showVipGift(data);
+            } else if (data.type === 'chat_reply') {
+                showChatReply(data);
+            }
+        };
+
+        function showVipGift(data) {
+            const container = document.getElementById('vip-container');
+            
+            const card = document.createElement('div');
+            card.className = 'vip-card';
+            card.innerHTML = `
+                <img src="${data.avatar}" alt="avatar">
+                <div class="vip-info">
+                    <h4>${data.user}</h4>
+                    <p>Подарок: ${data.giftName} (x${data.count})</p>
+                </div>
+            `;
+            
+            container.appendChild(card);
+
+            // Таймер: удаляем блок ровно через 60 секунд (1 минута)
+            setTimeout(() => {
+                card.style.animation = 'slideIn 0.5s ease reverse';
+                setTimeout(() => card.remove(), 500);
+            }, 60000);
+        }
+
+        function showChatReply(data) {
+            const container = document.getElementById('chat-notifications');
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble';
+            bubble.innerHTML = `<span>${data.user}:</span> ${data.text}`;
+            
+            container.appendChild(bubble);
+
+            // Удаляем сообщение через 7 секунд
+            setTimeout(() => {
+                bubble.style.animation = 'fadeIn 0.3s ease reverse';
+                setTimeout(() => bubble.remove(), 300);
+            }, 7000);
+        }
+    </script>
+</body>
+</html>
